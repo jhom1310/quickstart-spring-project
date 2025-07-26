@@ -2,6 +2,7 @@ package br.com.aleff.implementacao.service;
 
 
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -41,12 +42,11 @@ public class AuthService {
     }
 
     public AuthResponseDTO login(AuthRequestDTO request) {
-        authManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        request.getEmail(),
-                        request.getPassword()
-                )
-        );
+         try {
+        authManager.authenticate(new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
+        } catch (BadCredentialsException ex) {
+            throw new BadCredentialsException("Usuário inexistente ou senha inválida");
+        }
         User user = repository.findByEmail(request.getEmail()).orElseThrow();
         return new AuthResponseDTO(new UserResponseDTO(user.getId()), jwtService.generateToken(user), jwtService.generateRefreshToken(user));
     }
