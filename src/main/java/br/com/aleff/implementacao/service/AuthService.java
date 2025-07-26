@@ -3,6 +3,7 @@ package br.com.aleff.implementacao.service;
 
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -10,6 +11,7 @@ import br.com.aleff.implementacao.dto.AuthRequestDTO;
 import br.com.aleff.implementacao.dto.AuthResponseDTO;
 import br.com.aleff.implementacao.dto.RegisterRequest;
 import br.com.aleff.implementacao.dto.TokenRefreshResponseDTO;
+import br.com.aleff.implementacao.dto.UpdatePasswordRequestDTO;
 import br.com.aleff.implementacao.dto.UserResponseDTO;
 import br.com.aleff.implementacao.entity.User;
 import br.com.aleff.implementacao.repository.UserRepository;
@@ -25,9 +27,12 @@ public class AuthService {
     private final AuthenticationManager authManager;
     private final UserDetailsServiceImpl userDetailsService;
 
+    // 15 minutos de validade 
+    private static final long EXP_MINUTES = 15;
+
     public AuthResponseDTO register(RegisterRequest request) {
         User user = User.builder()
-                .username(request.getUsername())
+                .email(request.getEmail())
                 .password(encoder.encode(request.getPassword()))
                 .role(request.getRole())
                 .build();
@@ -38,11 +43,11 @@ public class AuthService {
     public AuthResponseDTO login(AuthRequestDTO request) {
         authManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
-                        request.getUsername(),
+                        request.getEmail(),
                         request.getPassword()
                 )
         );
-        User user = repository.findByUsername(request.getUsername()).orElseThrow();
+        User user = repository.findByEmail(request.getEmail()).orElseThrow();
         return new AuthResponseDTO(new UserResponseDTO(user.getId()), jwtService.generateToken(user), jwtService.generateRefreshToken(user));
     }
 
@@ -54,9 +59,31 @@ public class AuthService {
         }
 
         String newAccessToken = jwtService.generateToken(userDetails);
-        String newRefreshToken = jwtService.generateRefreshToken(userDetails); // opcional: renovar também o refresh token
+        String newRefreshToken = jwtService.generateRefreshToken(userDetails); //renovar também o refresh token
 
         return new TokenRefreshResponseDTO(newAccessToken, newRefreshToken);
     }
+
+    public void updatePassword(UpdatePasswordRequestDTO request) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = repository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado " + email));
+
+        if (!encoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("Senha atual incorreta");
+        }
+        if (!request.getNewPassword().equals(request.getNewConfirPassword())) {
+            throw new IllegalArgumentException("A confirmação da nova senha não confere");
+        }
+        if (encoder.matches(request.getNewPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("A nova senha não pode ser igual à senha atual");
+        }
+
+        // Atualizar senha
+        user.setPassword(encoder.encode(request.getNewPassword()));
+        repository.save(user);
+    }
+
+
 }
 
