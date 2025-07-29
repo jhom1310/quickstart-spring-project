@@ -28,9 +28,6 @@ public class AuthService {
     private final AuthenticationManager authManager;
     private final UserDetailsServiceImpl userDetailsService;
 
-    // 15 minutos de validade 
-    private static final long EXP_MINUTES = 15;
-
     public AuthResponseDTO register(RegisterRequest request) {
         User user = User.builder()
                 .email(request.getEmail())
